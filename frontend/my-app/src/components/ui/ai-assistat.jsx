@@ -261,7 +261,6 @@ return (
           <p className="text-xl text-slate-200 flex items-center justify-center">
             No Past Chats
           </p>
-
       </div>
     </div>
     <div className="w-[70%] flex flex-col h-full">
