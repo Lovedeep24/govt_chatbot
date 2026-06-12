@@ -169,7 +169,7 @@ export function BeamsBackground({
   Your one stop Platform for
 
   <div className="mt-4 flex items-center justify-center gap-4">
-    <span>Goverment</span>
+    <span>Government</span>
 
     <RotatingText
       texts={["Schemes", "Benefits", "Subsidies", "Grievances" , "Yojanas"]}

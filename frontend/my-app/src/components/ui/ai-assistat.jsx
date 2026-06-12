@@ -1,6 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, X, Loader2 ,Mic, Square} from "lucide-react";
+import { Send, Sparkles, X, Loader2 ,Mic, Square, Trash} from "lucide-react";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+import {
+  ThumbsUp,
+  ThumbsDown,
+  Copy,
+  RotateCcw,
+} from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 const AIMessageBar = () => {
   const [input, setInput] = useState("");
@@ -9,39 +18,81 @@ const AIMessageBar = () => {
   const messagesEndRef = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const[threadID,set_threadID]=useState("")
+
+  function generate_id(){
+    const randomNumber=Math.floor(Math.random()*10000)
+    return randomNumber
+  }
+
+  useEffect(()=>{
+    const uid=generate_id()
+    set_threadID(uid)
+  },[])
+  function playBase64Audio(base64Audio){
+  // 1. decode base64
+  const byteCharacters = atob(base64Audio);
+
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+
+  const byteArray = new Uint8Array(byteNumbers);
+
+  // 2. create blob (IMPORTANT: adjust type if needed)
+  const audioBlob = new Blob([byteArray], { type: "audio/wav" });
+
+  // 3. create URL
+  const audioUrl = URL.createObjectURL(audioBlob);
+
+  // 4. play
+  const audio = new Audio(audioUrl);
+  audio.play();
+}
   // Simulate AI typing effect
-  const simulateResponse = (userMessage) => {
+  const sendTextToBackend = async(userMessage,input_t) => {
     setIsTyping(true);
-    
-    // Simulate different responses based on input
-    let response = "Hi there! I'm your AI assistant. How can I help you today?";
-    
-    if (userMessage.toLowerCase().includes("hello") || userMessage.toLowerCase().includes("hi")) {
-      response = "Hello! I'm your friendly AI assistant. What can I do for you?";
-    } else if (userMessage.toLowerCase().includes("help")) {
-      response = "I'm here to help! You can ask me questions, request information, or just chat.";
-    } else if (userMessage.toLowerCase().includes("thank")) {
-      response = "You're welcome! Is there anything else you'd like to know?";
-    } else if (userMessage.toLowerCase().includes("who are you")) {
-      response = "I'm an AI assistant designed to be helpful, harmless, and honest!";
-    }
-    
-    setTimeout(() => {
-      setIsTyping(false);
-      setMessages((prev) => [...prev, { text: response, isUser: false }]);
-    }, 1500); 
+    console.log(userMessage)
+    try {
+    const data = {
+  message: userMessage,
+  thread_id: String(threadID),
+  input_type:input_t
+};
+console.log("data",data)
+    const response = await fetch(
+      "http://127.0.0.1:8000/chat/chat",
+       {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  }
+    );
+    // console.log("body",body)
+    const res = await response.json();
+
+    console.log("Backend Response:", res);
+    setIsTyping(false)
+    const fin=res.answer
+    setMessages((prev) => [...prev, { text: fin, isUser: false }]);
+    if (res.audio) {
+    playBase64Audio(res.audio)
+  }
+   } catch (error) {
+    console.error(error);
+   }
   };
 
   const handleSubmit = (e) => {
     e?.preventDefault();
-    
     if (input.trim() === "") return;
-    
     const userMessage = input;
     setMessages((prev) => [...prev, { text: userMessage, isUser: true }]);
     setInput("");
-    
-    simulateResponse(userMessage);
+    sendTextToBackend(userMessage,"text");
   };
   
 
@@ -137,6 +188,7 @@ useEffect(() => {
 }, []);
 
 const sendAudioToBackend = async (audioBlob) => {
+  setIsTyping(true);
   try {
     const formData = new FormData();
 
@@ -155,14 +207,18 @@ const sendAudioToBackend = async (audioBlob) => {
       }
     );
 
-    const data = await response.json();
-
-    console.log("Backend Response:", data);
-
+    // const data = await response.json();
+    // console.log("Backend Response:", data);
+    const res = await response.json();
+    console.log("Backend Response:", res);
+    const transcript =res.transcription_response.transcript.transcript
+    setMessages((prev) => [...prev, { text: transcript, isUser: true }]);
+    sendTextToBackend(transcript,"audio")
    } catch (error) {
     console.error(error);
    }
   };
+
   const clearChat = () => {
     setMessages([]);
   };
@@ -175,26 +231,40 @@ const sendAudioToBackend = async (audioBlob) => {
 return (
   <>
     
-    <div className="h-screen bg-slate-950 flex justify-center">
+    {/* <div className="h-screen bg-slate-950 flex justify-center">
       <Toaster richColors position="top-center" />
-      <div className="w-full max-w-5xl flex flex-col h-full">
-        {/* Header */}
-        <div className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Sparkles className="text-indigo-400 h-5 w-5" />
-            <h2 className="text-white font-medium text-lg">
-              AI Assistant
-            </h2>
-          </div>
+      <div className="w-full max-w-5xl flex flex-col h-full"> */}
 
+      <div className="h-screen bg-slate-950 overflow-hidden">
+  <Toaster richColors position="top-center" />
+
+  <div className="flex h-full">
+    {/* Sidebar CHAT HISTORY SECTION */}
+    <div className="w-[30%] bg-slate-900 border-r border-slate-800 flex flex-col">
+
+      <div className="p-5 border-b border-slate-800">
+        <div className="flex items-center justify-between">
+          <h2 className="text-white text-xl font-semibold">
+            Chat History
+          </h2>
+        
           <button
             onClick={clearChat}
-            className="text-slate-400 hover:text-white transition-colors hover:cursor-pointer"
+            className="text-slate-400 hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <Trash size={18} />
           </button>
         </div>
+      </div>
+        {/* PAST CHATS */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          <p className="text-xl text-slate-200 flex items-center justify-center">
+            No Past Chats
+          </p>
 
+      </div>
+    </div>
+    <div className="w-[70%] flex flex-col h-full">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-8">
           {messages.length === 0 ? (
@@ -215,30 +285,88 @@ return (
             <div className="max-w-3xl mx-auto space-y-6">
               {messages.map((msg, index) => (
                 <div
-                  key={index}
-                  className={`flex ${
-                    msg.isUser ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div
-                    className={`
-                      max-w-[75%]
-                      px-4
-                      py-3
-                      rounded-2xl
-                      animate-fade-in
-                      ${
-                        msg.isUser
-                          ? "bg-indigo-600 text-white"
-                          : "bg-slate-800 text-slate-100 border border-slate-700"
-                      }
-                    `}
-                  >
-                    <p className="text-sm leading-relaxed">
-                      {msg.text}
-                    </p>
-                  </div>
-                </div>
+              key={index}
+              className={`flex ${
+                msg.isUser ? "justify-end" : "justify-start"
+              }`}
+            >
+  <div className="group max-w-[75%]">
+    
+    <div
+      className={`
+        px-4
+        py-3
+        rounded-2xl
+        animate-fade-in
+        ${
+          msg.isUser
+            ? "bg-indigo-600 text-white"
+            : "bg-slate-800 text-slate-100 border border-slate-700"
+        }
+      `}
+    >
+      <div
+        className="
+          text-sm
+          leading-relaxed
+          [&_h1]:text-2xl
+          [&_h1]:font-bold
+          [&_h2]:text-xl
+          [&_h2]:font-semibold
+          [&_ul]:list-disc
+          [&_ul]:pl-5
+          [&_ol]:list-decimal
+          [&_ol]:pl-5
+          [&_li]:my-1
+          [&_p]:mb-2
+          [&_strong]:font-bold
+        "
+      >
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {msg.text}
+        </ReactMarkdown>
+      </div>
+    </div>
+      {/* Feedback Buttons */}
+        {!msg.isUser && (
+            <div
+              className="
+                flex
+                items-center
+                gap-1
+                mt-1
+                ml-1
+                transition-opacity
+                duration-200
+              "
+            >
+              <button
+                className="
+                  p-1
+                  rounded-md
+                  text-slate-500
+                  hover:text-slate-200
+                  hover:bg-slate-800
+                "
+              >
+                <ThumbsUp size={14} />
+              </button>
+
+                  <button
+                className="
+                  p-1
+                  rounded-md
+                  text-slate-500
+                  hover:text-slate-200
+                  hover:bg-slate-800
+                "
+              >
+                <ThumbsDown size={14} />
+              </button>
+            </div>
+            )}
+          </div>
+        </div>
               ))}
 
               {isTyping && (
@@ -257,8 +385,6 @@ return (
             </div>
           )}
         </div>
-
-        {/* Input Section */}
         <div
           className={`border-t ${
             isFocused
@@ -353,6 +479,9 @@ return (
             </div>
           </form>
         </div>
+</div>
+        {/* Input Section */}
+        
 
         <style>
           {`
